@@ -46,6 +46,9 @@ typedef unsigned char uchar;
 #define AMD
 #endif
 
+__host__ __device__ uint32_t vcc = 0;
+__host__ __device__ uint64_t check = 0x100000000ULL;
+
 // Returns a + b, puts the carry in b
 DEVICE ulong add_with_carry_64(ulong a, ulong *b) {
     ulong lo;
@@ -115,21 +118,47 @@ typedef uint limb;
 
 DEVICE inline uint32_t add_cc(uint32_t a, uint32_t b) {
     uint32_t r;
-    asm volatile("v_add_co_u32 %0, %1, %2" : "+v"(r): "v"(a), "v"(b));
+    uint64_t t;
+    t = (uint64_t)a + (uint64_t)b;
+    if (t >= check) {
+        vcc = 1;
+    } else {
+	vcc = 0;
+    }
+
+    r = t;
+    //asm volatile("v_add_co_u32 %0, %1, %2" : "+v"(r): "v"(a), "v"(b));
     return r;
 }
 
 DEVICE inline uint32_t addc_cc(uint32_t a, uint32_t b) {
     uint32_t r;
-    asm volatile("v_addc_co_u32 %0, vcc, %1, %2, vcc;" : "+v"(r): "v"(a), "v"(b): "vcc");
+    uint64_t t;
+
+    t = (uint64_t)a + (uint64_t)b + (uint64_t)vcc;
+    if (t >= check) {
+        vcc = 1;
+    } else {
+	vcc = 0;
+    }
+
+    r = t;
+    //asm volatile("v_addc_co_u32 %0, vcc, %1, %2, vcc;" : "+v"(r): "v"(a), "v"(b): "vcc");
     return r;
 }
 
 DEVICE inline uint32_t addc(uint32_t a, uint32_t b) {
     uint32_t r;
-    asm volatile("v_addc_co_u32 %0, vcc, %1, %2, vcc;" : "+v"(r): "v"(a), "v"(b): "vcc");
-    //To reset carry
-    asm volatile("v_add_co_u32 %0, %0, %1;" : "+v"(r) : "v"(0));
+    uint64_t t;
+
+    t = (uint64_t)a + (uint64_t)b + (uint64_t)vcc;
+    r = t;
+
+    vcc = 0;
+
+    //asm volatile("v_addc_co_u32 %0, vcc, %1, %2, vcc;" : "+v"(r): "v"(a), "v"(b): "vcc");
+    ////To reset carry
+    //asm volatile("v_add_co_u32 %0, %0, %1;" : "+v"(r) : "v"(0));
     return r;
 }
 
@@ -145,15 +174,36 @@ DEVICE inline uint32_t madlo(uint32_t a, uint32_t b, uint32_t c) {
 
 DEVICE inline uint32_t madlo_cc(uint32_t a, uint32_t b, uint32_t c) {
     uint32_t r;
-    asm volatile("v_mul_lo_u32 %0, %1, %2" : "+v"(r): "v"(a), "v"(b));
-    asm volatile("v_add_co_u32 %0, %0, %1" : "+v"(r): "v"(c));
+    uint64_t t;
+    r=a*b;
+    t = (uint64_t)r + (uint64_t)c;
+    if (t >= check) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+
+    r = t;
+    //asm volatile("v_mul_lo_u32 %0, %1, %2" : "+v"(r): "v"(a), "v"(b));
+    //asm volatile("v_add_co_u32 %0, %0, %1" : "+v"(r): "v"(c));
     return r;
 }
 
 DEVICE inline uint32_t madloc_cc(uint32_t a, uint32_t b, uint32_t c) {
     uint32_t r;
-    asm volatile("v_mul_lo_u32 %0, %1, %2" : "+v"(r): "v"(a), "v"(b));
-    asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(r): "v"(c): "vcc");
+    uint64_t t;
+    r=a*b;
+
+    t = (uint64_t)r + (uint64_t)c + (uint64_t)vcc;
+    if (t >= check) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+
+    r = t;
+    //asm volatile("v_mul_lo_u32 %0, %1, %2" : "+v"(r): "v"(a), "v"(b));
+    //asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(r): "v"(c): "vcc");
     return r;
 }
 
@@ -177,24 +227,56 @@ DEVICE inline uint32_t madhi(uint32_t a, uint32_t b, uint32_t c) {
 
 DEVICE inline uint32_t madhi_cc(uint32_t a, uint32_t b, uint32_t c) {
     uint32_t r;
-    asm volatile("v_mul_hi_u32 %0, %1, %2" : "+v"(r): "v"(a), "v"(b));
-    asm volatile("v_add_co_u32 %0, %0, %1" : "+v"(r): "v"(c));
+    uint64_t t;
+    t=(uint64_t)a*(uint64_t)b;
+    r=t>>32;
+
+    t = (uint64_t)r + (uint64_t)c;
+    if (t >= check) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+
+    r = t;
+
+    //asm volatile("v_mul_hi_u32 %0, %1, %2" : "+v"(r): "v"(a), "v"(b));
+    //asm volatile("v_add_co_u32 %0, %0, %1" : "+v"(r): "v"(c));
     return r;
 }
 
 DEVICE inline uint32_t madhic_cc(uint32_t a, uint32_t b, uint32_t c) {
     uint32_t r;
-    asm volatile("v_mul_hi_u32 %0, %1, %2;" : "+v"(r): "v"(a), "v"(b));
-    asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc;" : "+v"(r): "v"(c): "vcc");
+    uint64_t t;
+    t=(uint64_t)a*(uint64_t)b;
+    r=t>>32; 
+
+    t = (uint64_t)r + (uint64_t)c + (uint64_t)vcc;
+    if (t >= check) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+
+    r = t;
+    //asm volatile("v_mul_hi_u32 %0, %1, %2;" : "+v"(r): "v"(a), "v"(b));
+    //asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc;" : "+v"(r): "v"(c): "vcc");
     return r;
 }
 
 DEVICE inline uint32_t madhic(uint32_t a, uint32_t b, uint32_t c) {
     uint32_t r;
-    asm volatile("v_mul_hi_u32 %0, %1, %2" : "+v"(r): "v"(a), "v"(b));
-    asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(r): "v"(c): "vcc");
+    uint64_t t;
+    t=(uint64_t)a*(uint64_t)b;
+    r=t>>32; 
+
+    t = (uint64_t)r + (uint64_t)c + (uint64_t)vcc;
+    r = t;
+    vcc = 0;
+    //asm volatile("v_mul_hi_u32 %0, %1, %2" : "+v"(r): "v"(a), "v"(b));
+    //asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(r): "v"(c): "vcc");
     //To reset carry
-    asm volatile("v_add_co_u32 %0, %0, %1" : "+v"(r): "v"(0));
+    //asm volatile("v_add_co_u32 %0, %0, %1" : "+v"(r): "v"(0));
     return r;
 }
 
@@ -663,36 +745,230 @@ CONSTANT Fq Fq_ZERO = {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}};
 
 
 DEVICE Fq Fq_sub_nvidia(Fq a, Fq b) {
-    asm volatile("v_sub_co_u32 %0, %0, %1" : "+v"(a.val[0]): "v"(b.val[0]));
-    asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[1]): "v"(b.val[1]): "vcc");
-    asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[2]): "v"(b.val[2]): "vcc");
-    asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[3]): "v"(b.val[3]): "vcc");
-    asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[4]): "v"(b.val[4]): "vcc");
-    asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[5]): "v"(b.val[5]): "vcc");
-    asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[6]): "v"(b.val[6]): "vcc");
-    asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[7]): "v"(b.val[7]): "vcc");
-    asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[8]): "v"(b.val[8]): "vcc");
-    asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[9]): "v"(b.val[9]): "vcc");
-    asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[10]): "v"(b.val[10]): "vcc");
-    asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[11]): "v"(b.val[11]): "vcc");
-    asm volatile("v_sub_co_u32 %0, %0, %1" : "+v"(a.val[11]): "v"(0));
+    uint64_t t;
+    //t = (uint64_t)a.val[0] - (uint64_t)b.val[0];
+    if (b.val[0] > a.val[0]) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+
+    a.val[0] = a.val[0] - b.val[0];
+
+    t = (uint64_t)b.val[1] + (uint64_t)vcc;
+    if (t > (uint64_t)a.val[1]) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[1] = a.val[1] - t;
+
+    t = (uint64_t)b.val[2] + (uint64_t)vcc;
+    if (t > (uint64_t)a.val[2]) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[2] = a.val[2] - t;
+
+    t = (uint64_t)b.val[3] + (uint64_t)vcc;
+    if (t > (uint64_t)a.val[3]) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[3] = a.val[3] - t;
+
+    t = (uint64_t)b.val[4] + (uint64_t)vcc;
+    if (t > (uint64_t)a.val[4]) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[4] = a.val[4] - t;
+
+    t = (uint64_t)b.val[5] + (uint64_t)vcc;
+    if (t > (uint64_t)a.val[5]) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[5] = a.val[5] - t;
+
+    t = (uint64_t)b.val[6] + (uint64_t)vcc;
+    if (t > (uint64_t)a.val[6]) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[6] = a.val[6] - t;
+
+    t = (uint64_t)b.val[7] + (uint64_t)vcc;
+    if (t > (uint64_t)a.val[7]) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[7] = a.val[7] - t;
+
+    t = (uint64_t)b.val[8] + (uint64_t)vcc;
+    if (t > (uint64_t)a.val[8]) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[8] = a.val[8] - t;
+
+    t = (uint64_t)b.val[9] + (uint64_t)vcc;
+    if (t > (uint64_t)a.val[9]) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[9] = a.val[9] - t;
+
+    t = (uint64_t)b.val[10] + (uint64_t)vcc;
+    if (t > (uint64_t)a.val[10]) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[10] = a.val[10] - t;
+
+    t = (uint64_t)b.val[11] + (uint64_t)vcc;
+    a.val[11] = a.val[11] - t;
+
+    vcc = 0;
+
+    //asm volatile("v_sub_co_u32 %0, %0, %1" : "+v"(a.val[0]): "v"(b.val[0]));
+    //asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[1]): "v"(b.val[1]): "vcc");
+    //asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[2]): "v"(b.val[2]): "vcc");
+    //asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[3]): "v"(b.val[3]): "vcc");
+    //asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[4]): "v"(b.val[4]): "vcc");
+    //asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[5]): "v"(b.val[5]): "vcc");
+    //asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[6]): "v"(b.val[6]): "vcc");
+    //asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[7]): "v"(b.val[7]): "vcc");
+    //asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[8]): "v"(b.val[8]): "vcc");
+    //asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[9]): "v"(b.val[9]): "vcc");
+    //asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[10]): "v"(b.val[10]): "vcc");
+    //asm volatile("v_subb_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[11]): "v"(b.val[11]): "vcc");
+    //asm volatile("v_sub_co_u32 %0, %0, %1" : "+v"(a.val[11]): "v"(0));
     return a;
 }
 
 DEVICE Fq Fq_add_nvidia(Fq a, Fq b) {
-    asm volatile("v_add_co_u32 %0, %0, %1" : "+v"(a.val[0]): "v"(b.val[0]));
-    asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[1]): "v"(b.val[1]): "vcc");
-    asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[2]): "v"(b.val[2]): "vcc");
-    asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[3]): "v"(b.val[3]): "vcc");
-    asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[4]): "v"(b.val[4]): "vcc");
-    asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[5]): "v"(b.val[5]): "vcc");
-    asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[6]): "v"(b.val[6]): "vcc");
-    asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[7]): "v"(b.val[7]): "vcc");
-    asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[8]): "v"(b.val[8]): "vcc");
-    asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[9]): "v"(b.val[9]): "vcc");
-    asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[10]): "v"(b.val[10]): "vcc");
-    asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[11]): "v"(b.val[11]): "vcc");
-    asm volatile("v_add_co_u32 %0, %0, %1" : "+v"(a.val[11]): "v"(0));
+    uint64_t t;
+    t = (uint64_t)a.val[0] + (uint64_t)b.val[0];
+    if (t >= check) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[0] = t;
+
+    t = (uint64_t)a.val[1] + (uint64_t)b.val[1] + (uint64_t)vcc;
+    if (t >= check) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[1] = t;
+
+    t = (uint64_t)a.val[2] + (uint64_t)b.val[2] + (uint64_t)vcc;
+    if (t >= check) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[2] = t;
+
+    t = (uint64_t)a.val[3] + (uint64_t)b.val[3] + (uint64_t)vcc;
+    if (t >= check) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[3] = t;
+
+    t = (uint64_t)a.val[4] + (uint64_t)b.val[4] + (uint64_t)vcc;
+    if (t >= check) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[4] = t;
+
+    t = (uint64_t)a.val[5] + (uint64_t)b.val[5] + (uint64_t)vcc;
+    if (t >= check) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[5] = t;
+
+    t = (uint64_t)a.val[6] + (uint64_t)b.val[6] + (uint64_t)vcc;
+    if (t >= check) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[6] = t;
+
+    t = (uint64_t)a.val[7] + (uint64_t)b.val[7] + (uint64_t)vcc;
+    if (t >= check) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[7] = t;
+
+    t = (uint64_t)a.val[8] + (uint64_t)b.val[8] + (uint64_t)vcc;
+    if (t >= check) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[8] = t;
+
+    t = (uint64_t)a.val[9] + (uint64_t)b.val[9] + (uint64_t)vcc;
+    if (t >= check) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[9] = t;
+
+    t = (uint64_t)a.val[10] + (uint64_t)b.val[10] + (uint64_t)vcc;
+    if (t >= check) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[10] = t;
+
+    t = (uint64_t)a.val[11] + (uint64_t)b.val[11] + (uint64_t)vcc;
+    if (t >= check) {
+        vcc = 1;
+    } else {
+        vcc = 0;
+    }
+    a.val[11] = t;
+
+    vcc = 0;
+
+    //asm volatile("v_add_co_u32 %0, %0, %1" : "+v"(a.val[0]): "v"(b.val[0]));
+    //asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[1]): "v"(b.val[1]): "vcc");
+    //asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[2]): "v"(b.val[2]): "vcc");
+    //asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[3]): "v"(b.val[3]): "vcc");
+    //asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[4]): "v"(b.val[4]): "vcc");
+    //asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[5]): "v"(b.val[5]): "vcc");
+    //asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[6]): "v"(b.val[6]): "vcc");
+    //asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[7]): "v"(b.val[7]): "vcc");
+    //asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[8]): "v"(b.val[8]): "vcc");
+    //asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[9]): "v"(b.val[9]): "vcc");
+    //asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[10]): "v"(b.val[10]): "vcc");
+    //asm volatile("v_addc_co_u32 %0, vcc, %0, %1, vcc" : "+v"(a.val[11]): "v"(b.val[11]): "vcc");
+    //asm volatile("v_add_co_u32 %0, %0, %1" : "+v"(a.val[11]): "v"(0));
     return a;
 }
 
@@ -1104,7 +1380,7 @@ __device__ void print_G1(const char *name, G1_projective g1, const char *end) {
 }
 
 // http://www.hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#addition-add-2007-bl
-[[clang::optnone]]
+//[[clang::optnone]]
 DEVICE G1_projective G1_add(G1_projective a, G1_projective b) {
     // print_G1("a",a,"\n");
     // print_G1("b",b,"\n");
